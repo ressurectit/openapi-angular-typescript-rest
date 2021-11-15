@@ -20,7 +20,7 @@ export class Processor
     {
         this._fileObtainer.files.forEach(file =>
         {
-            const fileProcessor = new FileProcessor(file);
+            const fileProcessor = new FileProcessor(file, this._fileObtainer.config);
 
             fileProcessor.run();
         });

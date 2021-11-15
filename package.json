@@ -48,7 +48,7 @@
     },
     "homepage": "https://github.com/ressurectit/openapi-angular-typescript-rest#readme",
     "dependencies": {
-        "@jscrpt/common": "2.0.2",
+        "@jscrpt/common": "2.0.3",
         "extend": "^3.0.2",
         "tslib": "^2.3.1",
         "chalk": "4.1.2",
