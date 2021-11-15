@@ -1,0 +1,22 @@
+{{>licenseInfo}}
+
+import {Injectable} from '@angular/core';
+import {RESTClient, BaseUrl, DefaultHeaders, POST, PATCH, GET, UPDATE, PUT, DELETE, Body, Path, Query, QueryObject, JsonContentType, ResponseTransform, ParameterTransform} from '@anglr/rest';
+import {Observable} from 'rxjs';
+
+import { {{#imports}}{{classname}}, {{/imports}} } from '../model/models';
+
+
+{{#operations}}
+/**
+ * {{#operation.0}}{{#tags.0}}{{description}}{{/tags.0}}{{/operation.0}}
+ */
+@Injectable()
+export class {{classname}} extends RESTClient
+{
+    {{#operation}}
+
+{{>restMethod}}
+    {{/operation}}
+}
+{{/operations}}

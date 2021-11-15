@@ -1,0 +1,43 @@
+export interface {{classname}}{{#allParents}}{{#-first}} extends {{/-first}}{{{.}}}{{^-last}}, {{/-last}}{{/allParents}} { {{>modelGenericAdditionalProperties}}
+{{#vars}}
+    {{#description}}
+    /**
+     * {{{.}}}
+     */
+    {{/description}}
+    {{#isReadOnly}}readonly {{/isReadOnly}}{{{name}}}{{^required}}?{{/required}}: {{#isEnum}}{{{datatypeWithEnum}}}{{/isEnum}}{{^isEnum}}{{{dataType}}}{{/isEnum}}{{#isNullable}} | null{{/isNullable}};
+{{/vars}}
+}{{>modelGenericEnums}}
+
+/**
+ * Form model base for {{classname}}
+ */
+export class ɵ{{classname}}Model implements Required<{{classname}}>
+{
+    //######################### public properties #########################
+{{#vars}}
+    {{#description}}
+    /**
+     * {{{.}}}
+     */
+    {{/description}}
+    public {{#isReadOnly}}readonly {{/isReadOnly}}{{{name}}}: {{#isEnum}}{{{datatypeWithEnum}}}{{/isEnum}}{{^isEnum}}{{{dataType}}}{{/isEnum}}{{#isNullable}} | null{{/isNullable}};
+{{/vars}}
+
+    //######################### constructor #########################
+    constructor(value?: {{classname}})
+    {
+        if(!value)
+        {
+            return;
+        }
+
+        Object.keys(value).forEach(prop =>
+        {
+            if(value[prop] !== undefined)
+            {
+                this[prop] = value[prop];
+            }
+        });
+    }
+}

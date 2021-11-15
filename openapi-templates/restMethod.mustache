@@ -1,0 +1,20 @@
+    /**
+{{#summary}}
+     * {{.}}
+{{/summary}}
+{{#notes}}
+     * {{.}}
+{{/notes}}
+     {{#allParams}}
+     * @param {{paramName}} - {{description}}
+     {{/allParams}}
+     {{#isDeprecated}}
+     * @deprecated
+     {{/isDeprecated}}
+     */
+    {{#bodyParam}}@JsonContentType()
+    {{/bodyParam}}@{{#lambda.uppercase}}{{httpMethod}}{{/lambda.uppercase}}('{{path}}')
+    public {{nickname}}({{>restParams}}): Observable<{{{returnType}}}>
+    {
+        return null;
+    }

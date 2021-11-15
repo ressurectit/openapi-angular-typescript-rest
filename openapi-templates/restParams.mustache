@@ -1,0 +1,1 @@
+{{#allParams}}{{#isBodyParam}}@Body {{/isBodyParam}}{{^isBodyParam}}{{#isPathParam}}@Path('{{paramName}}') {{/isPathParam}}{{^isPathParam}}{{#isQueryParam}}@Query('{{paramName}}') {{/isQueryParam}}{{/isPathParam}}{{/isBodyParam}}_{{paramName}}: {{{dataType}}}{{^-last}}, {{/-last}}{{/allParams}}

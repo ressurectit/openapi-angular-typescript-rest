@@ -1,0 +1,14 @@
+/.vscode
+.eslintrc.json
+appveyor.yml
+ngv.config.json
+tsconfig.json
+
+*.ts
+!*.d.ts
+
+*~
+*.orig
+*.log
+*.spec.js
+*.spec.d.ts
