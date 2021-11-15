@@ -25,7 +25,7 @@ export interface Configuration
     classes?: ClassesConfiguration;
 
     /**
-     * Replacement for api path
+     * Replacement for api path, global
      */
     apiPathReplacement?: ApiPathReplacement;
 
@@ -51,9 +51,9 @@ export interface Configuration
 export interface ApiPathReplacement
 {
     /**
-     * Base url string that is being added to class decorators
+     * Base url expression to be set
      */
-    baseUrl: string;
+    baseUrlExpression: string;
 
     /**
      * Path prefix to be removed from all api http method paths
@@ -81,6 +81,11 @@ export interface ClassConfiguration
      * Configuration of methods
      */
     methods?: MethodsConfiguration;
+
+    /**
+     * Replacement for api path, class specific
+     */
+    apiPathReplacement?: ApiPathReplacement;
 }
 
 /**

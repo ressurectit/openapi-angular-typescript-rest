@@ -1,5 +1,17 @@
 # Changelog
 
+## Version 1.1.0 (2021-11-15)
+
+### Bug Fixes
+
+- removed forgotten decorator `@test`
+
+### Features
+
+- support of additional imports
+- support of apiPathReplacement global
+- support of apiPathReplacement class specific
+
 ## Version 1.0.0 (2021-11-15)
 
 ### Features

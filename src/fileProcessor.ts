@@ -1,14 +1,17 @@
-import {Project, SourceFile, SyntaxKind, MethodDeclaration, StringLiteral, ClassDeclaration, Identifier, ImportSpecifier} from 'ts-morph';
+import {flatMapArray} from '@jscrpt/common';
+import {Project, SourceFile, SyntaxKind, MethodDeclaration, StringLiteral, ClassDeclaration, Identifier, ImportSpecifier, Decorator} from 'ts-morph';
 import chalk from 'chalk';
 
-import {Configuration, ClassConfiguration, ImportConfiguration} from './config';
+import {Configuration, ImportConfiguration} from './config';
 import {FileObtainerFile} from './fileObtainer';
 
-//TODO: allow to specify different parent, or multiple
+//TODO: remove unused imports
 //TODO: merge query into queryObject
 //TODO: parameterTransform
+//TODO: allow to specify different parent, or multiple
 //TODO: create json schema for config
 //TODO: pluggable file processors
+//TODO: check existing named imports for added imports
 
 /**
  * Name of rest client class
@@ -26,15 +29,9 @@ const REST_CLIENT_PACKAGE = '@anglr/rest';
 const RESPONSE_TRANSFORM_DECORATOR = 'ResponseTransform';
 
 /**
- * Internal class representing imports
+ * Name of base url decorator
  */
-interface ɵClassConfiguration extends ClassConfiguration
-{
-    /**
-     * Array of already added imports for class
-     */
-    addedImports?: ImportConfiguration[];
-}
+const BASE_URL_DECORATOR = 'BaseUrl';
 
 /**
  * Processor used for processing single file
@@ -52,6 +49,11 @@ export class FileProcessor
      * Instance of source file
      */
     private _sourceFile!: SourceFile;
+
+    /**
+     * Array of already added imports for file
+     */
+    private _addedImports: ImportConfiguration[] = [];
 
     //######################### constructor #########################
     constructor(private _file: FileObtainerFile,
@@ -77,9 +79,11 @@ export class FileProcessor
 
         restClientClasses.forEach(restClientClass =>
         {
+            this._processAdditionalImports();
             this._updatePathParamsInPath(restClientClass);
             this._removeUsingSuffixFromMethod(restClientClass);
             this._processResponseTransform(restClientClass);
+            this._processBaseUrlReplacement(restClientClass);
         });
 
         this._sourceFile.saveSync();
@@ -137,6 +141,76 @@ export class FileProcessor
     }
 
     /**
+     * Process additional imports
+     */
+    private _processAdditionalImports(): void
+    {
+        if(!this._config.imports?.length)
+        {
+            return;
+        }
+
+        const imports = this._config.imports;
+
+        imports.forEach(importCfg => this._addImport(importCfg));
+    }
+
+    /**
+     * Processes baseUrl replacement
+     * @param restClientClass - Class that implements rest client
+     */
+    private _processBaseUrlReplacement(restClientClass: ClassDeclaration): void
+    {
+        const className = restClientClass.getName();
+        let apiPathReplacement = this._config.apiPathReplacement;
+
+        if(className)
+        {
+            const classConfig = this._config.classes?.[className];
+
+            if(classConfig?.apiPathReplacement)
+            {
+                apiPathReplacement = classConfig?.apiPathReplacement;
+            }
+        }
+
+        if(!apiPathReplacement)
+        {
+            return;
+        }
+
+        restClientClass.addDecorator(
+        {
+            name: BASE_URL_DECORATOR,
+            arguments: [apiPathReplacement.baseUrlExpression]
+        });
+
+        console.log(chalk.whiteBright.bold(`Adding new decorator '${BASE_URL_DECORATOR}' to '${restClientClass.getName()}'`));
+
+        const decorators = this._getMethodDecorators(restClientClass);
+        const pathPrefixRegex = new RegExp(`^${apiPathReplacement.pathPrefix}`);
+
+        decorators.forEach(decorator =>
+        {
+            const callExpr = decorator.getExpressionIfKind(SyntaxKind.CallExpression);
+            const arg = callExpr?.getArguments()?.[0];
+
+            if(arg instanceof StringLiteral)
+            {
+                const oldPath = arg.getLiteralText();
+
+                if(oldPath.search(pathPrefixRegex) == 0)
+                {
+                    const newPath = oldPath.replace(pathPrefixRegex, '');
+                    arg.setLiteralValue(newPath);
+
+                    console.log(chalk.whiteBright.bold(`Replacing method '${decorator.getParentIfKind(SyntaxKind.MethodDeclaration)?.getName()}' path to '${newPath}'`));
+                }
+            }
+        });
+    }
+
+    /**
      * Processes response transforms
      * @param restClientClass - Class that implements rest client
      */
@@ -149,7 +223,7 @@ export class FileProcessor
             return;
         }
 
-        const classConfig: ɵClassConfiguration|undefined = this._config.classes?.[className];
+        const classConfig = this._config.classes?.[className];
 
         if(!classConfig?.methods)
         {
@@ -173,19 +247,13 @@ export class FileProcessor
             {
                 transformMethods.push(importCfg.name);
                 
-                this._addImport(classConfig, importCfg);
+                this._addImport(importCfg);
             });
 
             method.insertDecorator(0,
             {
                 name: RESPONSE_TRANSFORM_DECORATOR,
                 arguments: transformMethods,
-            });
-
-            method.insertDecorator(0,
-            {
-                name: 'test',
-                arguments: ['`${config}api`']
             });
 
             console.log(chalk.whiteBright.bold(`Adding new decorator '${RESPONSE_TRANSFORM_DECORATOR}' to '${className}.${method.getName()}'`));
@@ -214,10 +282,11 @@ export class FileProcessor
                         if(arg instanceof StringLiteral)
                         {
                             let argText = arg.getLiteralText();
+                            const regex = /\${encodeURIComponent\(String\((.*?)\)\)}/g;
 
-                            if(argText.search(/\${encodeURIComponent\(String\((.*?)\)\)}/g) >= 0)
+                            if(argText.search(regex) >= 0)
                             {
-                                argText = argText.replace(/\${encodeURIComponent\(String\((.*?)\)\)}/g, '{$1}');
+                                argText = argText.replace(regex, '{$1}');
                                 
                                 arg.setLiteralValue(argText);
 
@@ -252,6 +321,19 @@ export class FileProcessor
     }
 
     /**
+     * Gets all methods decorators for rest client class
+     * @param restClientClass - Class that implements rest client
+     */
+    private _getMethodDecorators(restClientClass: ClassDeclaration): Decorator[]
+    {
+        return flatMapArray(restClientClass
+            .getMembers()
+            .filter(itm => itm instanceof MethodDeclaration)
+            .map(itm => itm as MethodDeclaration)
+            .map(itm => itm.getDecorators()));
+    }
+
+    /**
      * Gets all method declarations for rest client class
      * @param restClientClass - Class that implements rest client
      */
@@ -264,13 +346,12 @@ export class FileProcessor
     }
 
     /**
-     * Adds import for class
-     * @param classConfig - Configuration of class that is being processed
+     * Adds import for file
      * @param importCfg - Configuration of import that is being added
      */
-    private _addImport(classConfig: ɵClassConfiguration, importCfg: ImportConfiguration): void
+    private _addImport(importCfg: ImportConfiguration): void
     {
-        if(!classConfig.addedImports?.find(itm => itm.name == importCfg.name && itm.path == importCfg.path))
+        if(!this._addedImports.find(itm => itm.name == importCfg.name && itm.path == importCfg.path))
         {
             this._sourceFile.addImportDeclaration(
             {
@@ -283,8 +364,7 @@ export class FileProcessor
                 ]
             });
 
-            classConfig.addedImports = classConfig.addedImports ?? [];
-            classConfig.addedImports.push(importCfg);
+            this._addedImports.push(importCfg);
 
             console.log(chalk.whiteBright.bold(`Adding new import '${importCfg.name}' from '${importCfg.path}'`));
         }
