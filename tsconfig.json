@@ -20,7 +20,8 @@
         "esModuleInterop": true,
         "importHelpers": true,
         "newLine": "lf",
-        "outDir": "bin",
+        "rootDir": "src",
+        "outDir": "dist/es",
         "lib":
         [
             "es2020"

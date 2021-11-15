@@ -4,6 +4,9 @@
     "description": "Openapi typescript-angular generator extensions",
     "type": "module",
     "sideEffects": false,
+    "bin": {
+        "oatar": "dist/oatar.js"
+    },
     "scripts": {
         "build": "npm run tsc",
         "clean": "rimraf dist",
@@ -17,7 +20,11 @@
         "postpublish": "npm run version:placeholder && npm run clean",
         "bundle": "npm run clean && npm run build",
         "deploy": "npm publish --loglevel error",
-        "deploy:next": "npm publish --tag next --loglevel error"
+        "deploy:next": "npm publish --tag next --loglevel error",
+        "build:cjs": "npm run build:cjs:rename && npm run build:cjs:replace:map && npm run build:cjs:replace:relative",
+        "build:cjs:rename": "node node_modules/rename-cli/bin.js dist/module/**/*.js {{f}}.cjs",
+        "build:cjs:replace:map": "replace-in-file .js\"\" .cjs\"\" dist/module/**/*.js.map",
+        "build:cjs:replace:relative": "replace-in-file /require\\(\\\"[.](.*)\\\"/g require(\\\".$1.cjs\\\" dist/module/**/*.cjs --isRegex"
     },
     "engines": {
         "node": "^12.20.0 || ^14.15.0 || >=16.10.0"
@@ -39,23 +46,28 @@
     },
     "homepage": "https://github.com/ressurectit/openapi-angular-typescript-rest#readme",
     "dependencies": {
+        "@jscrpt/common": "1.1.1",
         "extend": "^3.0.2",
-        "tslib": "^2.3.1"
+        "tslib": "^2.3.1",
+        "chalk": "4.1.2",
+        "ts-morph": "12.2.0",
+        "glob": "7.2.0",
+        "yargs": "17.2.1"
     },
     "devDependencies": {
         "@types/node": "14.14.31",
         "eslint": "7.32.0",
-        "ts-morph": "12.2.0",
         "@typescript-eslint/eslint-plugin": "4.33.0",
         "@typescript-eslint/parser": "4.33.0",
         "eslint-plugin-ressurectit": "0.1.0",
         "rimraf": "3.0.2",
         "copyfiles": "2.4.1",
         "replace-in-file": "6.3.2",
+        "rename-cli": "6.2.1",
         "typescript": "4.4.4",
         "npm-git-version": "2.0.0"
     },
-    "main": "./dist/module/indexNode.cjs",
+    "main": "./dist/cjs/index.cjs",
     "typings": "./src/index.d.ts",
     "exports": {
         "./package.json": {
@@ -63,16 +75,11 @@
         },
         ".": {
             "types": "./src/index.d.ts",
-            "es5": "./dist/es5/index.js",
-            "es2015": "./dist/es2015/index.js",
-            "es2020": "./dist/es2020/index.js",
-            "esm2020": "./dist/es2020/index.js",
             "node": {
-                "require": "./dist/module/indexNode.cjs",
-                "import": "./dist/es2015/indexNode.js"
+                "require": "./dist/cjs/index.cjs",
+                "import": "./dist/es/index.js"
             },
-            "browser": "./dist/es2015/index.js",
-            "default": "./dist/es2020/index.js"
+            "default": "./dist/es/index.js"
         }
     }
 }
