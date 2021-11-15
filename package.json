@@ -5,10 +5,10 @@
     "type": "module",
     "sideEffects": false,
     "bin": {
-        "oatar": "dist/oatar.js"
+        "oatar": "dist/es/oatar.js"
     },
     "scripts": {
-        "build": "npm run tsc",
+        "build": "npm run tsc && npm run build:mjs",
         "clean": "rimraf dist",
         "clean:deps": "rimraf package-lock.json node_modules",
         "clean:all": "npm run clean && npm run clean:deps",
@@ -21,10 +21,12 @@
         "bundle": "npm run clean && npm run build",
         "deploy": "npm publish --loglevel error",
         "deploy:next": "npm publish --tag next --loglevel error",
+        "build:mjs": "replace-in-file /from\\s'[.](.*)'/g \"from '.$1.js'\" dist/es/**/*.js --isRegex",
         "build:cjs": "npm run build:cjs:rename && npm run build:cjs:replace:map && npm run build:cjs:replace:relative",
         "build:cjs:rename": "node node_modules/rename-cli/bin.js dist/module/**/*.js {{f}}.cjs",
         "build:cjs:replace:map": "replace-in-file .js\"\" .cjs\"\" dist/module/**/*.js.map",
-        "build:cjs:replace:relative": "replace-in-file /require\\(\\\"[.](.*)\\\"/g require(\\\".$1.cjs\\\" dist/module/**/*.cjs --isRegex"
+        "build:cjs:replace:relative": "replace-in-file /require\\(\\\"[.](.*)\\\"/g require(\\\".$1.cjs\\\" dist/module/**/*.cjs --isRegex",
+        "start": "npm run tsc -- --watch"
     },
     "engines": {
         "node": "^12.20.0 || ^14.15.0 || >=16.10.0"
@@ -46,16 +48,21 @@
     },
     "homepage": "https://github.com/ressurectit/openapi-angular-typescript-rest#readme",
     "dependencies": {
-        "@jscrpt/common": "1.1.1",
+        "@jscrpt/common": "2.0.2",
         "extend": "^3.0.2",
         "tslib": "^2.3.1",
         "chalk": "4.1.2",
         "ts-morph": "12.2.0",
         "glob": "7.2.0",
-        "yargs": "17.2.1"
+        "yargs": "17.2.1",
+        "yargs-parser": "20.2.9"
     },
     "devDependencies": {
         "@types/node": "14.14.31",
+        "@types/glob": "7.2.0",
+        "@types/extend": "3.0.1",
+        "@types/yargs": "17.0.5",
+        "@types/yargs-parser": "20.2.1",
         "eslint": "7.32.0",
         "@typescript-eslint/eslint-plugin": "4.33.0",
         "@typescript-eslint/parser": "4.33.0",
@@ -68,13 +75,13 @@
         "npm-git-version": "2.0.0"
     },
     "main": "./dist/cjs/index.cjs",
-    "typings": "./src/index.d.ts",
+    "typings": "./src/es/index.d.ts",
     "exports": {
         "./package.json": {
             "default": "./package.json"
         },
         ".": {
-            "types": "./src/index.d.ts",
+            "types": "./src/es/index.d.ts",
             "node": {
                 "require": "./dist/cjs/index.cjs",
                 "import": "./dist/es/index.js"

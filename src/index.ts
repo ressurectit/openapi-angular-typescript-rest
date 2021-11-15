@@ -1,3 +1,2 @@
-console.log('ok');
-
-export default 'test';
+export * from './config';
+export * from './fileObtainer';
