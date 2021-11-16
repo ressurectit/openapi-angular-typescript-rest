@@ -1,4 +1,10 @@
 /**
+ * Type of parameter
+ */
+// export type ParameterTypeDecorator = 'Query'|'QueryObject'|'Path'|'Body'|'Header';
+export type ParameterTypeDecorator = 'Query'|'Path'|'Header';
+
+/**
  * Command line options/arguments
  */
 export interface CommandLineOptions
@@ -27,7 +33,7 @@ export interface Configuration
     /**
      * Replacement for api path, global
      */
-    apiPathReplacement?: ApiPathReplacement;
+    apiPathReplacement?: ApiPathReplacementConfiguration;
 
     /**
      * Default headers
@@ -48,7 +54,7 @@ export interface Configuration
 /**
  * Api path replacement definition
  */
-export interface ApiPathReplacement
+export interface ApiPathReplacementConfiguration
 {
     /**
      * Base url expression to be set
@@ -85,7 +91,7 @@ export interface ClassConfiguration
     /**
      * Replacement for api path, class specific
      */
-    apiPathReplacement?: ApiPathReplacement;
+    apiPathReplacement?: ApiPathReplacementConfiguration;
 }
 
 /**
@@ -108,6 +114,85 @@ export interface MethodConfiguration
      * Definition of response transform
      */
     responseTransform?: ImportConfiguration[];
+
+    /**
+     * Definition for merging query params into queryObject
+     */
+    mergeQueryParams?: MergeQueryParamsConfiguration[];
+
+    /**
+     * Definition of additional parameters
+     */
+    addParams?: NewParamConfiguration[];
+
+    /**
+     * Definition of parameters configuration
+     */
+    params?: ParamsConfiguration;
+}
+
+/**
+ * Configuration of parameters
+ */
+export interface ParamsConfiguration
+{
+    /**
+     * Configuration of parameters
+     */
+    [paramName: string]: ParamConfiguration|undefined;
+}
+
+/**
+ * Configuration of parameter
+ */
+export interface ParamConfiguration
+{
+    /**
+     * Definition of parameter transform
+     */
+    parameterTransform?: ImportConfiguration[];
+}
+
+/**
+ * Configuration of parameter
+ */
+export interface NewParamConfiguration
+{
+    /**
+     * Name of parameter
+     */
+    name: string;
+
+    /**
+     * Parameter type decorator
+     */
+    parameterType: ParameterTypeDecorator;
+
+    /**
+     * Type of parameter, can be just type or imported type
+     */
+    type: string|ImportConfiguration;
+}
+
+/**
+ * Configuration for merge query params
+ */
+export interface MergeQueryParamsConfiguration
+{
+    /**
+     * Array of params to be merged
+     */
+    params: string[];
+
+    /**
+     * Defintion of name for newly created type, if defined together with import, import will take precedence
+     */
+    name?: string;
+
+    /**
+     * Definition of existing type to be used, if defined together with name, this will take precedence
+     */
+    import?: ImportConfiguration;
 }
 
 /**

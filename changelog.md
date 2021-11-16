@@ -1,6 +1,6 @@
 # Changelog
 
-## Version 1.1.0 (2021-11-15)
+## Version 1.1.0 (2021-11-16)
 
 ### Bug Fixes
 
@@ -11,6 +11,7 @@
 - support of additional imports
 - support of apiPathReplacement global
 - support of apiPathReplacement class specific
+- support of adding new parameters to methods
 
 ## Version 1.0.0 (2021-11-15)
 

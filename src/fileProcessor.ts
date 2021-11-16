@@ -1,8 +1,8 @@
-import {flatMapArray} from '@jscrpt/common';
-import {Project, SourceFile, SyntaxKind, MethodDeclaration, StringLiteral, ClassDeclaration, Identifier, ImportSpecifier, Decorator} from 'ts-morph';
+import {flatMapArray, isString} from '@jscrpt/common';
+import {Project, SourceFile, SyntaxKind, MethodDeclaration, StringLiteral, ClassDeclaration, Identifier, ImportSpecifier, Decorator, ParameterDeclaration} from 'ts-morph';
 import chalk from 'chalk';
 
-import {Configuration, ImportConfiguration} from './config';
+import {Configuration, ImportConfiguration, ClassConfiguration, MethodConfiguration, ParamConfiguration} from './config';
 import {FileObtainerFile} from './fileObtainer';
 
 //TODO: remove unused imports
@@ -12,6 +12,8 @@ import {FileObtainerFile} from './fileObtainer';
 //TODO: create json schema for config
 //TODO: pluggable file processors
 //TODO: check existing named imports for added imports
+//TODO: addParameter
+//TODO: reorder params, body
 
 /**
  * Name of rest client class
@@ -84,6 +86,8 @@ export class FileProcessor
             this._removeUsingSuffixFromMethod(restClientClass);
             this._processResponseTransform(restClientClass);
             this._processBaseUrlReplacement(restClientClass);
+            this._processNewParameters(restClientClass);
+            console.log(this._getParamConfig);
         });
 
         this._sourceFile.saveSync();
@@ -106,7 +110,7 @@ export class FileProcessor
         const restClientClasses = classes.filter(itm =>
         {
             const $extends = itm.getHeritageClauseByKind(SyntaxKind.ExtendsKeyword);
-            
+
             if(!$extends)
             {
                 return false;
@@ -153,6 +157,62 @@ export class FileProcessor
         const imports = this._config.imports;
 
         imports.forEach(importCfg => this._addImport(importCfg));
+    }
+
+    /**
+     * Processes new parameters
+     * @param restClientClass - Class that implements rest client
+     */
+    private _processNewParameters(restClientClass: ClassDeclaration): void
+    {
+        this._forEachMethod(restClientClass, (method, config) =>
+        {
+            if(!config.addParams?.length)
+            {
+                return;
+            }
+
+            config.addParams.forEach(param =>
+            {
+                let type: string|null = null;
+
+                if(isString(param.type))
+                {
+                    type = param.type;
+                }
+                else
+                {
+                    type = param.type?.name;
+
+                    if(type)
+                    {
+                        this._addImport(param.type);
+                    }
+                }
+
+                if(!type)
+                {
+                    return;
+                }
+
+                const name = param.name?.replace(/^_/, '');
+
+                console.log(chalk.whiteBright.bold(`Adding new '${param.parameterType}' parameter '${name}' to '${method.getName()}'`));
+
+                method.addParameter(
+                {
+                    name: `_${name}`,
+                    type: type,
+                    decorators:
+                    [
+                        {
+                            name: param.parameterType,
+                            arguments: [`'${name}'`]
+                        }
+                    ]
+                });
+            });
+        });
     }
 
     /**
@@ -216,37 +276,19 @@ export class FileProcessor
      */
     private _processResponseTransform(restClientClass: ClassDeclaration): void
     {
-        const className = restClientClass.getName();
-
-        if(!className)
+        this._forEachMethod(restClientClass, (method, config) =>
         {
-            return;
-        }
-
-        const classConfig = this._config.classes?.[className];
-
-        if(!classConfig?.methods)
-        {
-            return;
-        }
-
-        const methods = this._getMethods(restClientClass);
-
-        methods.forEach(method =>
-        {
-            const methodConfig = classConfig.methods![method.getName()];
-
-            if(!methodConfig?.responseTransform)
+            if(!config?.responseTransform)
             {
                 return;
             }
 
             const transformMethods: string[] = [];
 
-            methodConfig.responseTransform.forEach(importCfg =>
+            config.responseTransform.forEach(importCfg =>
             {
                 transformMethods.push(importCfg.name);
-                
+
                 this._addImport(importCfg);
             });
 
@@ -256,7 +298,7 @@ export class FileProcessor
                 arguments: transformMethods,
             });
 
-            console.log(chalk.whiteBright.bold(`Adding new decorator '${RESPONSE_TRANSFORM_DECORATOR}' to '${className}.${method.getName()}'`));
+            console.log(chalk.whiteBright.bold(`Adding new decorator '${RESPONSE_TRANSFORM_DECORATOR}' to '${restClientClass.getName()}.${method.getName()}'`));
         });
     }
 
@@ -287,7 +329,7 @@ export class FileProcessor
                             if(argText.search(regex) >= 0)
                             {
                                 argText = argText.replace(regex, '{$1}');
-                                
+
                                 arg.setLiteralValue(argText);
 
                                 console.log(chalk.whiteBright.bold(`Replacing path parameter '${argText}'`));
@@ -318,6 +360,103 @@ export class FileProcessor
                 node.replaceWithText(node.getText().replace(regex, ''));
             }
         });
+    }
+
+    /**
+     * For each method with configuration
+     * @param restClientClass - Class that implements rest client
+     * @param callback - Callback called for each method which has configuration
+     */
+    private _forEachMethod(restClientClass: ClassDeclaration,
+                           callback: (method: MethodDeclaration, config: MethodConfiguration) => void)
+    {
+        const classConfig = this._getClassConfig(restClientClass);
+
+        if(!classConfig?.methods)
+        {
+            return;
+        }
+
+        const methods = this._getMethods(restClientClass);
+
+        methods.forEach(method =>
+        {
+            const methodConfig = this._getMethodConfig(classConfig, method);
+
+            if(!methodConfig)
+            {
+                return;
+            }
+
+            callback(method, methodConfig);
+        });
+    }
+
+    /**
+     * Gets class configuration
+     * @param restClientClass - Class that implements rest client
+     */
+    private _getClassConfig(restClientClass: ClassDeclaration): ClassConfiguration|null
+    {
+        const className = restClientClass.getName();
+
+        if(!className)
+        {
+            return null;
+        }
+
+        const classConfig = this._config.classes?.[className];
+
+        if(!classConfig)
+        {
+            return null;
+        }
+
+        return classConfig;
+    }
+
+    /**
+     * Gets configuration of method for class
+     * @param classConfig - Configuration of class
+     * @param method - Method that is part of the class
+     */
+    private _getMethodConfig(classConfig: ClassConfiguration, method: MethodDeclaration): MethodConfiguration|null
+    {
+        if(!classConfig.methods)
+        {
+            return null;
+        }
+
+        const methodConfig = classConfig.methods[method.getName()];
+
+        if(!methodConfig)
+        {
+            return null;
+        }
+
+        return methodConfig;
+    }
+
+    /**
+     * Gets configuration of parameter for method
+     * @param methodConfig - Configuration of method
+     * @param parameter - Parameter that is part of the method
+     */
+    private _getParamConfig(methodConfig: MethodConfiguration, parameter: ParameterDeclaration): ParamConfiguration|null
+    {
+        if(!methodConfig.params)
+        {
+            return null;
+        }
+
+        const paramConfig = methodConfig.params[parameter.getName().replace(/^_/, '')] ?? methodConfig.params[parameter.getName()] ?? methodConfig.params[`_${parameter.getName()}`];
+
+        if(!paramConfig)
+        {
+            return null;
+        }
+
+        return paramConfig;
     }
 
     /**
