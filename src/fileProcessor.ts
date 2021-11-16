@@ -1,19 +1,16 @@
 import {flatMapArray, isString} from '@jscrpt/common';
-import {Project, SourceFile, SyntaxKind, MethodDeclaration, StringLiteral, ClassDeclaration, Identifier, ImportSpecifier, Decorator, ParameterDeclaration} from 'ts-morph';
+import {Project, SourceFile, SyntaxKind, MethodDeclaration, StringLiteral, ClassDeclaration, Identifier, ImportSpecifier, Decorator, ParameterDeclaration, QuoteKind} from 'ts-morph';
 import chalk from 'chalk';
 
-import {Configuration, ImportConfiguration, ClassConfiguration, MethodConfiguration, ParamConfiguration} from './config';
+import {Configuration, ImportConfiguration, ClassConfiguration, MethodConfiguration, ParamConfiguration, ParameterTypeDecorator} from './config';
 import {FileObtainerFile} from './fileObtainer';
 
-//TODO: remove unused imports
-//TODO: merge query into queryObject
-//TODO: parameterTransform
 //TODO: allow to specify different parent, or multiple
-//TODO: create json schema for config
+//TODO: create json schema for config, validate
 //TODO: pluggable file processors
 //TODO: check existing named imports for added imports
-//TODO: addParameter
 //TODO: reorder params, body
+//TODO: type transform global, local
 
 /**
  * Name of rest client class
@@ -29,6 +26,26 @@ const REST_CLIENT_PACKAGE = '@anglr/rest';
  * Name of response transform decorator
  */
 const RESPONSE_TRANSFORM_DECORATOR = 'ResponseTransform';
+
+/**
+ * Name of parameter transform decorator
+ */
+const PARAMETER_TRANSFORM_DECORATOR = 'ParameterTransform';
+
+/**
+ * Name of query object decorator
+ */
+const QUERY_OBJECT_DECORATOR = 'QueryObject';
+
+/**
+ * Name of body decorator
+ */
+const BODY_DECORATOR = 'Body';
+
+/**
+ * Name of query decorator
+ */
+const QUERY_DECORATOR = 'Query';
 
 /**
  * Name of base url decorator
@@ -61,7 +78,14 @@ export class FileProcessor
     constructor(private _file: FileObtainerFile,
                 private _config: Configuration)
     {
-        this._project = new Project();
+        this._project = new Project(
+        {
+            manipulationSettings:
+            {
+                quoteKind: QuoteKind.Single,
+                insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: false
+            }
+        });
     }
 
     //######################### constructor #########################
@@ -71,6 +95,7 @@ export class FileProcessor
      */
     public run(): void
     {
+        console.log(chalk.whiteBright.bold(`----------------'${this._file.path}'----------------`));
         this._sourceFile = this._project.createSourceFile(this._file.path, this._file.content, {overwrite: true});
         const restClientClasses = this._findRestClientClasses();
 
@@ -87,13 +112,51 @@ export class FileProcessor
             this._processResponseTransform(restClientClass);
             this._processBaseUrlReplacement(restClientClass);
             this._processNewParameters(restClientClass);
-            console.log(this._getParamConfig);
+            this._processQueryParamsMerge(restClientClass);
+            this._processParamTransform(restClientClass);
+            this._removeUnusedAnglrRestImports();
         });
 
         this._sourceFile.saveSync();
     }
 
     //######################### private methods #########################
+
+    /**
+     * Removes unused imports from AnglrRest
+     */
+    private _removeUnusedAnglrRestImports(): void
+    {
+        const anglrImports = this._sourceFile.getImportDeclarations().find(itm => itm.getModuleSpecifier().getLiteralText() == REST_CLIENT_PACKAGE);
+
+        if(!anglrImports)
+        {
+            return;
+        }
+
+        const namedImports = anglrImports.getNamedImports();
+        const usedImports: ImportSpecifier[] = [];
+
+        for(const named of namedImports)
+        {
+            const references = named.getNameNode().findReferencesAsNodes();
+
+            //only self or none
+            if(references.length <= 1)
+            {
+                console.log(chalk.whiteBright.bold(`Removing unused import '${named.getName()}'`));
+
+                continue;
+            }
+
+            usedImports.push(named);
+        }
+
+        const usedImportsString = usedImports.map(itm => itm.getName());
+
+        anglrImports.removeNamedImports();
+        anglrImports.addNamedImports(usedImportsString);
+    }
 
     /**
      * Finds all css classes that are classes implementing rest client
@@ -160,6 +223,90 @@ export class FileProcessor
     }
 
     /**
+     * Processes query params merge
+     * @param restClientClass - Class that implements rest client
+     */
+    private _processQueryParamsMerge(restClientClass: ClassDeclaration): void
+    {
+        this._forEachMethod(restClientClass, (method, config) =>
+        {
+            if(!config.mergeQueryParams?.length)
+            {
+                return;
+            }
+
+            config.mergeQueryParams.forEach(mergeParamsCfg =>
+            {
+                const queryParams = method.getParameters()
+                    .filter(itm => itm.getDecorators()
+                        .find(dec =>
+                        {
+                            const callExpr = dec.getExpressionIfKind(SyntaxKind.CallExpression);
+
+                            if(!callExpr)
+                            {
+                                return false;
+                            }
+
+                            const isQuery = callExpr
+                                ?.getExpressionIfKind(SyntaxKind.Identifier)
+                                ?.getText() == QUERY_DECORATOR;
+
+                            if(!isQuery)
+                            {
+                                return false;
+                            }
+
+                            const arg = callExpr.getArguments()[0];
+
+                            if(arg instanceof StringLiteral && mergeParamsCfg.params.find(itm => arg.getLiteralText() == itm))
+                            {
+                                return true;
+                            }
+
+                            return false;
+                        }));
+
+                //TODO: generate type in future if name specified
+
+                queryParams.forEach(itm =>
+                {
+                    console.log(chalk.whiteBright.bold(`Removing parameter '${itm.getName()}' from '${restClientClass.getName()}.${method.getName()}'`));
+
+                    itm.remove();
+                });
+
+                this._addParameter(method, mergeParamsCfg.paramName, mergeParamsCfg.type, QUERY_OBJECT_DECORATOR);
+            });
+        });
+    }
+
+    /**
+     * Processes parameter transform
+     * @param restClientClass - Class that implements rest client
+     */
+    private _processParamTransform(restClientClass: ClassDeclaration): void
+    {
+        this._forEachParameter(restClientClass, (param, config, method) =>
+        {
+            if(!config.parameterTransform?.length)
+            {
+                return;
+            }
+            
+            config.parameterTransform.forEach(itm => this._addImport(itm));
+
+            console.log(chalk.whiteBright.bold(`Adding new decorator '${PARAMETER_TRANSFORM_DECORATOR}' to '${restClientClass.getName()}.${method.getName()}' param '${param.getName()}'`));
+
+            param.addDecorator(
+            {
+                name: PARAMETER_TRANSFORM_DECORATOR,
+                arguments: config.parameterTransform.map(itm => itm.name)
+            });
+        });
+    }
+
+    /**
      * Processes new parameters
      * @param restClientClass - Class that implements rest client
      */
@@ -174,43 +321,7 @@ export class FileProcessor
 
             config.addParams.forEach(param =>
             {
-                let type: string|null = null;
-
-                if(isString(param.type))
-                {
-                    type = param.type;
-                }
-                else
-                {
-                    type = param.type?.name;
-
-                    if(type)
-                    {
-                        this._addImport(param.type);
-                    }
-                }
-
-                if(!type)
-                {
-                    return;
-                }
-
-                const name = param.name?.replace(/^_/, '');
-
-                console.log(chalk.whiteBright.bold(`Adding new '${param.parameterType}' parameter '${name}' to '${method.getName()}'`));
-
-                method.addParameter(
-                {
-                    name: `_${name}`,
-                    type: type,
-                    decorators:
-                    [
-                        {
-                            name: param.parameterType,
-                            arguments: [`'${name}'`]
-                        }
-                    ]
-                });
+                this._addParameter(method, param.name, param.type, param.parameterType);
             });
         });
     }
@@ -393,6 +504,32 @@ export class FileProcessor
     }
 
     /**
+     * For each parameter with configuration
+     * @param restClientClass - Class that implements rest client
+     * @param callback - Callback called for each parameter which has configuration
+     */
+    private _forEachParameter(restClientClass: ClassDeclaration,
+                              callback: (param: ParameterDeclaration, config: ParamConfiguration, method: MethodDeclaration) => void)
+    {
+        this._forEachMethod(restClientClass, (method, config) =>
+        {
+            const params = method.getParameters();
+
+            params.forEach(prm =>
+            {
+                const paramConfig = this._getParamConfig(config, prm);
+
+                if(!paramConfig)
+                {
+                    return;
+                }
+
+                callback(prm, paramConfig, method);
+            });
+        });
+    }
+
+    /**
      * Gets class configuration
      * @param restClientClass - Class that implements rest client
      */
@@ -507,5 +644,53 @@ export class FileProcessor
 
             console.log(chalk.whiteBright.bold(`Adding new import '${importCfg.name}' from '${importCfg.path}'`));
         }
+    }
+
+    /**
+     * Adds new parameter to method
+     * @param method - Method that will have new parameter
+     * @param paramName - Name of added parameter
+     * @param dataType - Data type of new parameter
+     * @param parameterType - Type of http parameter
+     */
+    private _addParameter(method: MethodDeclaration, paramName: string, dataType: string|ImportConfiguration, parameterType: ParameterTypeDecorator): void
+    {
+        let type: string|null = null;
+
+        if(isString(dataType))
+        {
+            type = dataType;
+        }
+        else
+        {
+            type = dataType?.name;
+
+            if(type)
+            {
+                this._addImport(dataType);
+            }
+        }
+
+        if(!type)
+        {
+            return;
+        }
+
+        const name = paramName?.replace(/^_/, '');
+
+        console.log(chalk.whiteBright.bold(`Adding new '${parameterType}' parameter '${name}' to '${method.getName()}'`));
+
+        method.addParameter(
+        {
+            name: `_${name}`,
+            type: type,
+            decorators:
+            [
+                {
+                    name: parameterType,
+                    arguments: parameterType == BODY_DECORATOR || parameterType == QUERY_OBJECT_DECORATOR ? undefined : [`'${name}'`]
+                }
+            ]
+        });
     }
 }

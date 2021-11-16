@@ -1,10 +1,14 @@
+/* eslint-disable */
 {{>licenseInfo}}
 
 import {Injectable} from '@angular/core';
 import {RESTClient, BaseUrl, DefaultHeaders, POST, PATCH, GET, UPDATE, PUT, DELETE, Body, Path, Query, QueryObject, JsonContentType, ResponseTransform, ParameterTransform} from '@anglr/rest';
 import {Observable} from 'rxjs';
 
-import { {{#imports}}{{classname}}, {{/imports}} } from '../model/models';
+{{#imports}}
+// @ts-ignore
+import { {{classname}} } from '../{{filename}}';
+{{/imports}}
 
 
 {{#operations}}

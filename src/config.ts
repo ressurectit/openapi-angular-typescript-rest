@@ -1,8 +1,7 @@
 /**
  * Type of parameter
  */
-// export type ParameterTypeDecorator = 'Query'|'QueryObject'|'Path'|'Body'|'Header';
-export type ParameterTypeDecorator = 'Query'|'Path'|'Header';
+export type ParameterTypeDecorator = 'Query'|'QueryObject'|'Path'|'Body'|'Header';
 
 /**
  * Command line options/arguments
@@ -185,14 +184,20 @@ export interface MergeQueryParamsConfiguration
     params: string[];
 
     /**
-     * Defintion of name for newly created type, if defined together with import, import will take precedence
+     * Name of parameter that will be created
      */
-    name?: string;
+    paramName: string;
+
+    //TODO: add this in future
+    // /**
+    //  * Defintion of name for newly created type, if defined together with import, import will take precedence
+    //  */
+    // name?: string;
 
     /**
-     * Definition of existing type to be used, if defined together with name, this will take precedence
+     * Type of parameter that will be created, can be just type or imported type
      */
-    import?: ImportConfiguration;
+    type: string|ImportConfiguration;
 }
 
 /**

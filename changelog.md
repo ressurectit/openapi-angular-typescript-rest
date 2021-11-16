@@ -1,5 +1,15 @@
 # Changelog
 
+## Version 1.2.0 (2021-11-16)
+
+### Features
+
+- update template for generating api (model imports and eslint ignore)
+- removing unused imports
+- support of param transform
+- support of `QueryObject` and `Body` for new parameters
+- support of merging `Query` params into `QueryObject` param
+
 ## Version 1.1.0 (2021-11-16)
 
 ### Bug Fixes
